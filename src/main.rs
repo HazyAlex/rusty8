@@ -144,7 +144,9 @@ impl Emulator {
     }
 
     fn jump(&mut self, opcode: u16) {
-        todo!()
+        self.program_counter = opcode & 0x0FFF;
+
+        println!("JUMP: {}", self.program_counter)
     }
 
     fn fn_call(&mut self, opcode: u16) {
@@ -172,7 +174,17 @@ impl Emulator {
     }
 
     fn set_register_to(&mut self, opcode: u16) {
-        todo!()
+        let register = (opcode & 0x0F00) >> 8;
+        let value = opcode & 0x00FF;
+
+        println!("SET REGISTER {}: {}", register, value);
+
+        if register > 16 {
+            println!("REGISTER {} OUT OF BOUNDS: setting {}", register, value);
+            return;
+        }
+
+        self.registers[register as usize] = value as u8;
     }
 
     fn add_to_variable(&mut self, opcode: u16) {

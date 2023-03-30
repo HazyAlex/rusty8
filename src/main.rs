@@ -279,8 +279,11 @@ impl Emulator {
         todo!()
     }
 
+    /// Sets VX to the value of the delay timer.
     fn set_variable_to_delay_timer(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+
+        self.registers[vx as usize] = self.delay_timer;
     }
 
     /// Adds VX to I. VF is not affected.
@@ -307,12 +310,22 @@ impl Emulator {
         todo!()
     }
 
+    /// Fills from V0 to VX (including VX) with values from memory, starting at address I.
+    /// The offset from I is increased by 1 for each value read, but I itself is left unmodified.
     fn load_registers_from_memory(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+
+        for register in 0..(vx + 1) {
+            let result = self.memory[(self.address + register) as usize];
+
+            self.registers[register as usize] = result;
+        }
     }
 
     fn set_delay_timer_to(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+
+        self.delay_timer = self.registers[vx as usize];
     }
 
     fn set_sound_timer_to(&mut self, opcode: u16) {

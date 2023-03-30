@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{fs::File, io::Read};
+use std::{env::args, fs::File, io::Read};
 
 use fltk::{app, prelude::*, window::Window};
 
@@ -395,16 +395,22 @@ impl Emulator {
 }
 
 fn main() {
-    let mut file = File::open("games/Invaders.ch8").expect("ROM not found!");
+    let mut file = File::open(
+        args()
+            .nth(1)
+            .expect("Expected a path to a CHIP-8 program as the first argument."),
+    )
+    .expect("File not found!");
+
     let mut emulator = Emulator::default();
 
     emulator.load_font();
     emulator.load_rom(&mut file);
 
     //
-    // UI
+    // GUI
     //
-    const RATIO: usize = 4;
+    const RATIO: usize = 8;
     const WIDTH: i32 = (CHIP8_WIDTH * RATIO) as i32;
     const HEIGHT: i32 = (CHIP8_HEIGHT * RATIO) as i32;
 
@@ -445,8 +451,6 @@ fn main() {
 
             fltk::draw::draw_rgba(&mut frame, &frame_buffer).unwrap();
             window.redraw();
-
-            app::sleep(0.016);
         }
     });
 

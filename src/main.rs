@@ -10,23 +10,36 @@ const CHIP8_HEIGHT: usize = 32;
 
 struct Emulator {
     registers: [u8; 16],
-    stack: Vec<u16>,
-    program_counter: u16,
+
+    stack: [u16; 16],
+    stack_pointer: u8,
+
     address: u16,
     memory: [u8; 4096],
+    program_counter: u16,
 
     screen: [[u8; CHIP8_HEIGHT]; CHIP8_WIDTH],
+
+    keyboard: [u8; 16],
+    delay_timer: u8,
 }
 
 impl Default for Emulator {
     fn default() -> Self {
         Self {
             registers: [0u8; 16],
-            stack: Default::default(),
-            program_counter: 512,
+
+            stack: [0u16; 16],
+            stack_pointer: Default::default(),
+
             address: Default::default(),
             memory: [0u8; 4096],
+            program_counter: 512,
+
             screen: [[0u8; CHIP8_HEIGHT]; CHIP8_WIDTH],
+
+            keyboard: [0u8; 16],
+            delay_timer: Default::default(),
         }
     }
 }
@@ -53,8 +66,6 @@ impl Emulator {
 
         current = current << 8;
         current = current | next;
-
-        println!("Opcode: 0x{:X}", current);
 
         current
     }
@@ -132,32 +143,36 @@ impl Emulator {
                 _ => unreachable!(),
             },
 
-            _ => unimplemented!(),
+            _ => unreachable!(),
         }
     }
 
-    //
-    // Functions
-    //
+    /// Clears the screen.
     fn clear_screen(&mut self) {
-        todo!()
+        self.screen = [[0u8; CHIP8_HEIGHT]; CHIP8_WIDTH];
     }
 
+    /// Jumps to address NNN.
     fn jump(&mut self, opcode: u16) {
         self.program_counter = opcode & 0x0FFF;
-
-        println!("JUMP: {}", self.program_counter)
     }
 
+    /// Calls subroutine at NNN.
     fn fn_call(&mut self, opcode: u16) {
-        todo!()
+        self.stack_pointer += 1;
+        self.stack[self.stack_pointer as usize] = self.program_counter;
+
+        self.program_counter = opcode & 0x0FFF;
     }
 
+    /// Returns from a subroutine.
     fn fn_return(&mut self) {
-        todo!()
+        self.program_counter = self.stack[self.stack_pointer as usize];
+
+        self.stack_pointer -= 1;
     }
 
-    fn skip_if_variable_is_equal_to(&mut self, _opcode: u16) {
+    fn skip_if_variable_is_equal_to(&mut self, opcode: u16) {
         todo!()
     }
 
@@ -174,17 +189,10 @@ impl Emulator {
     }
 
     fn set_register_to(&mut self, opcode: u16) {
-        let register = (opcode & 0x0F00) >> 8;
+        let vx = (opcode & 0x0F00) >> 8;
         let value = opcode & 0x00FF;
 
-        println!("SET REGISTER {}: {}", register, value);
-
-        if register > 16 {
-            println!("REGISTER {} OUT OF BOUNDS: setting {}", register, value);
-            return;
-        }
-
-        self.registers[register as usize] = value as u8;
+        self.registers[vx as usize] = value as u8;
     }
 
     fn add_to_variable(&mut self, opcode: u16) {
@@ -289,7 +297,7 @@ impl Emulator {
 }
 
 fn main() {
-    let mut file = File::open("roms/invaders.ch8").expect("ROM not found!");
+    let mut file = File::open("games/Invaders.ch8").expect("ROM not found!");
     let mut emulator = Emulator::default();
 
     emulator.load_rom(&mut file);
@@ -297,8 +305,9 @@ fn main() {
     //
     // UI
     //
-    const WIDTH: i32 = CHIP8_WIDTH as i32 * 4;
-    const HEIGHT: i32 = CHIP8_HEIGHT as i32 * 4;
+    const RATIO: usize = 4;
+    const WIDTH: i32 = (CHIP8_WIDTH * RATIO) as i32;
+    const HEIGHT: i32 = (CHIP8_HEIGHT * RATIO) as i32;
 
     let mut window = Window::default()
         .with_size(WIDTH, HEIGHT)
@@ -316,23 +325,24 @@ fn main() {
         emulator.run();
 
         for (i, pixel) in frame_buffer.chunks_exact_mut(4).enumerate() {
-            let x = (i % WIDTH as usize) as i16;
-            let y = (i / WIDTH as usize) as i16;
+            let x = i % WIDTH as usize;
+            let y = i / WIDTH as usize;
 
-            let paint_black = if x < y { true } else { false };
+            let color = emulator.screen[x / RATIO][y / RATIO];
 
-            let rgba = if paint_black {
+            let rgba = if color == 0 {
                 [0, 0, 0, 255]
             } else {
                 [255, 255, 255, 255]
             };
 
-            pixel.copy_from_slice(&rgba);
+            pixel.copy_from_slice(&rgba)
         }
 
         fltk::draw::draw_rgba(&mut frame, &frame_buffer).unwrap();
 
         window.redraw();
+
         app::sleep(0.016);
     });
 

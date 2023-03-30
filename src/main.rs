@@ -219,6 +219,7 @@ impl Emulator {
         todo!()
     }
 
+    /// Sets VX to NN.
     fn set_register_to(&mut self, opcode: u16) {
         let vx = (opcode & 0x0F00) >> 8;
         let value = opcode & 0x00FF;
@@ -234,6 +235,7 @@ impl Emulator {
         self.registers[vx as usize] += value as u8;
     }
 
+    /// Sets VX to the value of VY.
     fn op_assignment(&mut self, opcode: u16) {
         let vx = (opcode & 0x0F00) >> 8;
         let vy = (opcode & 0x00F0) >> 4;
@@ -380,6 +382,7 @@ impl Emulator {
         }
     }
 
+    /// Sets the delay timer to VX.
     fn set_delay_timer_to(&mut self, opcode: u16) {
         let vx = (opcode & 0x0F00) >> 8;
 

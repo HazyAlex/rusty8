@@ -19,6 +19,7 @@ struct Emulator {
     program_counter: u16,
 
     screen: [[u8; CHIP8_HEIGHT]; CHIP8_WIDTH],
+    redraw: bool,
 
     keyboard: [u8; 16],
     delay_timer: u8,
@@ -37,6 +38,7 @@ impl Default for Emulator {
             program_counter: 512,
 
             screen: [[0u8; CHIP8_HEIGHT]; CHIP8_WIDTH],
+            redraw: false,
 
             keyboard: [0u8; 16],
             delay_timer: Default::default(),
@@ -317,8 +319,41 @@ impl Emulator {
         self.address += value as u16;
     }
 
+    /// Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels.
+    /// Each row of 8 pixels is read as bit-coded starting from memory location I; I value does not change after the execution of this instruction.
+    /// VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen.
     fn draw_sprite(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+        let _x = self.registers[vx as usize] % CHIP8_WIDTH as u8;
+        let _y = self.registers[vy as usize] % CHIP8_HEIGHT as u8;
+
+        const WIDTH: u8 = 8;
+        let height = (opcode & 0x000F) as u8;
+
+        for sprite_byte in 0..height {
+            let byte = self.memory[(self.address + sprite_byte as u16) as usize];
+
+            let y = (_y + sprite_byte) as usize % CHIP8_HEIGHT;
+            let mut x = _x as usize;
+
+            for bit in (0..8).rev() {
+                let is_on = byte & (1 << bit);
+
+                if is_on > 0 && self.screen[x][y] == 1 {
+                    self.screen[x][y] = 0;
+                    self.registers[0x0F] = 1;
+                } else if is_on > 0 && self.screen[x][y] == 0 {
+                    self.screen[x][y] = 1;
+                    self.registers[0x0F] = 0;
+                }
+
+                x += 1;
+                x %= CHIP8_WIDTH;
+            }
+        }
+
+        self.redraw = true;
     }
 
     fn sets_address_to_sprite(&mut self, opcode: u16) {
@@ -389,26 +424,27 @@ fn main() {
             emulator.delay_timer -= 1;
         }
 
-        for (i, pixel) in frame_buffer.chunks_exact_mut(4).enumerate() {
-            let x = i % WIDTH as usize;
-            let y = i / WIDTH as usize;
+        if emulator.redraw {
+            for (i, pixel) in frame_buffer.chunks_exact_mut(4).enumerate() {
+                let x = i % WIDTH as usize;
+                let y = i / WIDTH as usize;
 
-            let color = emulator.screen[x / RATIO][y / RATIO];
+                let color = emulator.screen[x / RATIO][y / RATIO];
 
-            let rgba = if color == 0 {
-                [0, 0, 0, 255]
-            } else {
-                [255, 255, 255, 255]
-            };
+                let rgba = if color == 0 {
+                    [0, 0, 0, 255]
+                } else {
+                    [255, 255, 255, 255]
+                };
 
-            pixel.copy_from_slice(&rgba)
+                pixel.copy_from_slice(&rgba)
+            }
+
+            fltk::draw::draw_rgba(&mut frame, &frame_buffer).unwrap();
+            window.redraw();
+
+            app::sleep(0.016);
         }
-
-        fltk::draw::draw_rgba(&mut frame, &frame_buffer).unwrap();
-
-        window.redraw();
-
-        app::sleep(0.016);
     });
 
     app::App::default().run().unwrap();

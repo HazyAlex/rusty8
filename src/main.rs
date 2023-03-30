@@ -361,6 +361,10 @@ fn main() {
     app::add_idle3(move |_| {
         emulator.run();
 
+        if emulator.delay_timer > 0 {
+            emulator.delay_timer -= 1;
+        }
+
         for (i, pixel) in frame_buffer.chunks_exact_mut(4).enumerate() {
             let x = i % WIDTH as usize;
             let y = i / WIDTH as usize;

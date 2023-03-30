@@ -172,8 +172,14 @@ impl Emulator {
         self.stack_pointer -= 1;
     }
 
+    /// Skips the next instruction if VX equals NN (usually the next instruction is a jump to skip a code block).
     fn skip_if_variable_is_equal_to(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let value = opcode & 0x00FF;
+
+        if self.registers[vx as usize] == value as u8 {
+            self.program_counter += 2;
+        }
     }
 
     fn skip_if_variable_is_not_equal_to(&mut self, opcode: u16) {
@@ -195,12 +201,19 @@ impl Emulator {
         self.registers[vx as usize] = value as u8;
     }
 
+    /// Adds NN to VX (carry flag is not changed)
     fn add_to_variable(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let value = opcode & 0x00FF;
+
+        self.registers[vx as usize] += value as u8;
     }
 
     fn op_assignment(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        self.registers[vx as usize] = self.registers[vy as usize];
     }
 
     fn op_or(&mut self, opcode: u16) {
@@ -235,8 +248,9 @@ impl Emulator {
         todo!()
     }
 
+    /// Sets I to the address NNN.
     fn set_address_to(&mut self, opcode: u16) {
-        todo!()
+        self.address = opcode & 0x0FFF;
     }
 
     fn jump_add(&mut self, opcode: u16) {
@@ -251,8 +265,14 @@ impl Emulator {
         todo!()
     }
 
+    /// Skips the next instruction if the key stored in VX is not pressed (usually the next instruction is a jump to skip a code block).
     fn skip_if_not_pressed(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let key = self.registers[vx as usize];
+
+        if self.keyboard[key as usize] == 0 {
+            self.program_counter += 2;
+        }
     }
 
     fn skip_if_pressed(&mut self, opcode: u16) {
@@ -263,8 +283,12 @@ impl Emulator {
         todo!()
     }
 
+    /// Adds VX to I. VF is not affected.
     fn add_variable_to_address(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let value = self.registers[vx as usize];
+
+        self.address += value as u16;
     }
 
     fn draw_sprite(&mut self, opcode: u16) {

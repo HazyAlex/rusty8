@@ -21,7 +21,7 @@ struct Emulator {
     screen: [[u8; CHIP8_HEIGHT]; CHIP8_WIDTH],
     redraw: bool,
 
-    keyboard: [u8; 16],
+    keyboard: [bool; 16],
     delay_timer: u8,
 }
 
@@ -40,7 +40,7 @@ impl Default for Emulator {
             screen: [[0u8; CHIP8_HEIGHT]; CHIP8_WIDTH],
             redraw: false,
 
-            keyboard: [0u8; 16],
+            keyboard: [false; 16],
             delay_timer: Default::default(),
         }
     }
@@ -349,13 +349,19 @@ impl Emulator {
         let vx = (opcode & 0x0F00) >> 8;
         let key = self.registers[vx as usize];
 
-        if self.keyboard[key as usize] == 0 {
+        if !self.keyboard[key as usize] {
             self.program_counter += 2;
         }
     }
 
+    /// Skips the next instruction if the key stored in VX is pressed (usually the next instruction is a jump to skip a code block).
     fn skip_if_pressed(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let key = self.registers[vx as usize];
+
+        if self.keyboard[key as usize] {
+            self.program_counter += 2;
+        }
     }
 
     /// Sets VX to the value of the delay timer.

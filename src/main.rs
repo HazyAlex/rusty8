@@ -232,7 +232,7 @@ impl Emulator {
         let vx = (opcode & 0x0F00) >> 8;
         let value = opcode & 0x00FF;
 
-        self.registers[vx as usize] += value as u8;
+        self.registers[vx as usize] = self.registers[vx as usize].overflowing_add(value as u8).0;
     }
 
     /// Sets VX to the value of VY.
@@ -243,36 +243,88 @@ impl Emulator {
         self.registers[vx as usize] = self.registers[vy as usize];
     }
 
+    /// Sets VX to VX or VY. (bitwise OR operation)
     fn op_or(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        self.registers[vx as usize] = self.registers[vx as usize] | self.registers[vy as usize];
     }
 
+    /// Sets VX to VX and VY. (bitwise AND operation)
     fn op_and(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        self.registers[vx as usize] = self.registers[vx as usize] & self.registers[vy as usize];
     }
 
+    /// Sets VX to VX xor VY.
     fn op_xor(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        self.registers[vx as usize] = self.registers[vx as usize] ^ self.registers[vy as usize];
     }
 
+    /// Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there is not.
     fn op_add(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        let x = self.registers[vx as usize];
+        let y = self.registers[vy as usize];
+
+        let result = x.overflowing_add(y);
+
+        self.registers[vx as usize] = result.0;
+        self.registers[0x0F as usize] = if result.1 { 1 } else { 0 };
     }
 
+    /// VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there is not.
     fn op_sub(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        let x = self.registers[vx as usize];
+        let y = self.registers[vy as usize];
+
+        let result = x.overflowing_sub(y);
+
+        self.registers[vx as usize] = result.0;
+        self.registers[0x0F as usize] = if result.1 { 1 } else { 0 };
     }
 
+    /// Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
     fn op_shift_right(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vf = 0x0F;
+
+        self.registers[vf as usize] = self.registers[vx as usize] & 1;
+        self.registers[vx as usize] = self.registers[vx as usize] >> 1;
     }
 
+    /// Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there is not.
     fn op_sub_assign(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        let x = self.registers[vx as usize];
+        let y = self.registers[vy as usize];
+
+        let result = y.overflowing_sub(x);
+
+        self.registers[vx as usize] = result.0;
+        self.registers[0x0F as usize] = if result.1 { 1 } else { 0 };
     }
 
+    /// Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
     fn op_shift_left(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vf = 0x0F;
+
+        self.registers[vf as usize] = self.registers[vx as usize] & (1 << 7);
+        self.registers[vx as usize] = self.registers[vx as usize] << 1;
     }
 
     /// Sets I to the address NNN.

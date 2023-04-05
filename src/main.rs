@@ -363,8 +363,12 @@ impl Emulator {
         self.address = opcode & 0x0FFF;
     }
 
+    /// Jumps to the address NNN plus V0.
     fn jump_add(&mut self, opcode: u16) {
-        todo!()
+        let value = opcode & 0x0FFF;
+        let v0 = self.registers[0] as u16;
+
+        self.address = value + v0;
     }
 
     /// Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN.

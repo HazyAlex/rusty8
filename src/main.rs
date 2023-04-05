@@ -21,8 +21,8 @@ pub struct Emulator {
     stack: [u16; 16],
     stack_pointer: u8,
 
-    address: u16,
     memory: [u8; 4096],
+    address: u16,
     program_counter: u16,
 
     screen: [[u8; CHIP8_HEIGHT]; CHIP8_WIDTH],
@@ -35,16 +35,16 @@ pub struct Emulator {
     sound_timer: u8,
 }
 
-impl Default for Emulator {
-    fn default() -> Self {
-        Self {
+impl Emulator {
+    fn initialize(file: &mut File) -> Self {
+        let mut emulator = Self {
             registers: [0u8; 16],
 
             stack: [0u16; 16],
-            stack_pointer: Default::default(),
+            stack_pointer: 0,
 
-            address: Default::default(),
             memory: [0u8; 4096],
+            address: 0,
             program_counter: 512,
 
             screen: [[0u8; CHIP8_HEIGHT]; CHIP8_WIDTH],
@@ -53,14 +53,11 @@ impl Default for Emulator {
             keyboard: [false; 16],
             waiting_for_keypress: false,
 
-            delay_timer: Default::default(),
-            sound_timer: Default::default(),
-        }
-    }
-}
+            delay_timer: 0,
+            sound_timer: 0,
+        };
 
-impl Emulator {
-    fn load_font(&mut self) {
+        // Load the font
         static FONT: [u8; 16 * 5] = [
             0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
             0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -79,14 +76,13 @@ impl Emulator {
             0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
             0xF0, 0x80, 0xF0, 0x80, 0x80, // F
         ];
+        emulator.memory[..0x50].copy_from_slice(&FONT);
 
-        self.memory[..0x50].copy_from_slice(&FONT);
-    }
+        // Load the program
+        let data = &mut emulator.memory[0x0200..];
+        file.read(data).expect("Invalid program.");
 
-    fn load_rom(&mut self, file: &mut File) {
-        let data = &mut self.memory[0x0200..];
-
-        file.read(data).expect("Invalid ROM");
+        emulator
     }
 
     fn next_opcode(&mut self) -> u16 {
@@ -530,10 +526,7 @@ fn main() {
     )
     .expect("File not found!");
 
-    let mut emulator = Emulator::default();
-
-    emulator.load_font();
-    emulator.load_rom(&mut file);
+    let mut emulator = Emulator::initialize(&mut file);
 
     //
     // GUI

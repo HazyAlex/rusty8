@@ -1,14 +1,22 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{env::args, fs::File, io::Read};
+use std::{
+    collections::VecDeque,
+    env::args,
+    fs::File,
+    io::Read,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
 use fltk::{app, prelude::*, window::Window};
+use rand::Rng;
 
 const CHIP8_WIDTH: usize = 64;
 const CHIP8_HEIGHT: usize = 32;
 
-struct Emulator {
+pub struct Emulator {
     registers: [u8; 16],
 
     stack: [u16; 16],
@@ -22,7 +30,9 @@ struct Emulator {
     redraw: bool,
 
     keyboard: [bool; 16],
+
     delay_timer: u8,
+    sound_timer: u8,
 }
 
 impl Default for Emulator {
@@ -41,7 +51,9 @@ impl Default for Emulator {
             redraw: false,
 
             keyboard: [false; 16],
+
             delay_timer: Default::default(),
+            sound_timer: Default::default(),
         }
     }
 }
@@ -67,7 +79,7 @@ impl Emulator {
             0xF0, 0x80, 0xF0, 0x80, 0x80, // F
         ];
 
-        self.memory[0x0000..0x0050].copy_from_slice(&FONT);
+        self.memory[..0x50].copy_from_slice(&FONT);
     }
 
     fn load_rom(&mut self, file: &mut File) {
@@ -150,7 +162,7 @@ impl Emulator {
                     _ => unreachable!(),
                 },
                 0x0020 => match opcode & fourth {
-                    0x0009 => self.sets_address_to_sprite(opcode),
+                    0x0009 => self.sets_address_to_font_sprite(opcode),
                     _ => unreachable!(),
                 },
                 0x0030 => match opcode & fourth {
@@ -207,8 +219,14 @@ impl Emulator {
         }
     }
 
+    /// Skips the next instruction if VX does not equal NN (usually the next instruction is a jump to skip a code block).
     fn skip_if_variable_is_not_equal_to(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let value = opcode & 0x00FF;
+
+        if self.registers[vx as usize] != value as u8 {
+            self.program_counter += 2;
+        }
     }
 
     fn skip_if_variables_equal(&mut self, opcode: u16) {
@@ -336,10 +354,15 @@ impl Emulator {
         todo!()
     }
 
+    /// Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN.
     fn bitwise_and_with_random(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let value = opcode & 0x00FF;
+
+        self.registers[vx as usize] = rand::thread_rng().gen_range(0..=255) & value as u8;
     }
 
+    /// A key press is awaited, and then stored in VX (blocking operation, all instruction halted until next key event).
     fn get_key_press(&mut self, opcode: u16) {
         todo!()
     }
@@ -388,7 +411,6 @@ impl Emulator {
         let _x = self.registers[vx as usize] % CHIP8_WIDTH as u8;
         let _y = self.registers[vy as usize] % CHIP8_HEIGHT as u8;
 
-        const WIDTH: u8 = 8;
         let height = (opcode & 0x000F) as u8;
 
         for sprite_byte in 0..height {
@@ -416,16 +438,31 @@ impl Emulator {
         self.redraw = true;
     }
 
-    fn sets_address_to_sprite(&mut self, opcode: u16) {
-        todo!()
+    /// Sets I to the location of the sprite for the character in VX. Characters 0-F (in hexadecimal) are represented by a 4x5 font.
+    fn sets_address_to_font_sprite(&mut self, opcode: u16) {
+        let vx = (opcode & 0x0F00) >> 8;
+        let character = self.registers[vx as usize];
+
+        self.address = (character * 5) as u16;
     }
 
+    /// Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.
     fn store_variable_as_binary(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let value = self.registers[vx as usize];
+
+        self.memory[(self.address + 0) as usize] = value / 100;
+        self.memory[(self.address + 1) as usize] = (value % 100) / 10;
+        self.memory[(self.address + 2) as usize] = value % 10;
     }
 
+    /// Stores from V0 to VX (including VX) in memory, starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
     fn dump_registers_into_memory(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+
+        for register in 0..(vx + 1) {
+            self.memory[(self.address + register) as usize] = self.registers[register as usize];
+        }
     }
 
     /// Fills from V0 to VX (including VX) with values from memory, starting at address I.
@@ -447,8 +484,11 @@ impl Emulator {
         self.delay_timer = self.registers[vx as usize];
     }
 
+    /// Sets the sound timer to VX.
     fn set_sound_timer_to(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+
+        self.sound_timer = self.registers[vx as usize];
     }
 }
 
@@ -468,7 +508,7 @@ fn main() {
     //
     // GUI
     //
-    const RATIO: usize = 8;
+    const RATIO: usize = 10;
     const WIDTH: i32 = (CHIP8_WIDTH * RATIO) as i32;
     const HEIGHT: i32 = (CHIP8_HEIGHT * RATIO) as i32;
 
@@ -483,12 +523,23 @@ fn main() {
     window.show();
 
     let mut frame_buffer = vec![0; (WIDTH * HEIGHT * 4) as usize];
+    let mut delay_timer = Instant::now();
+    let mut sound_timer = Instant::now();
+
+    let keyboard: Arc<Mutex<VecDeque<char>>> = Arc::new(Mutex::new(VecDeque::with_capacity(10)));
+    let keyboard_events: Arc<Mutex<VecDeque<char>>> = keyboard.clone();
 
     app::add_idle3(move |_| {
         emulator.run();
 
-        if emulator.delay_timer > 0 {
+        if emulator.delay_timer > 0 && delay_timer.elapsed().as_millis() >= 16 {
             emulator.delay_timer -= 1;
+            delay_timer = Instant::now();
+        }
+
+        if emulator.sound_timer > 0 && sound_timer.elapsed().as_millis() >= 16 {
+            emulator.sound_timer -= 1;
+            sound_timer = Instant::now();
         }
 
         if emulator.redraw {

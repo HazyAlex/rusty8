@@ -210,7 +210,7 @@ impl Emulator {
         self.stack_pointer -= 1;
     }
 
-    /// Skips the next instruction if VX equals NN (usually the next instruction is a jump to skip a code block).
+    /// Skips the next instruction if VX equals NN.
     fn skip_if_variable_is_equal_to(&mut self, opcode: u16) {
         let vx = (opcode & 0x0F00) >> 8;
         let value = opcode & 0x00FF;
@@ -220,7 +220,7 @@ impl Emulator {
         }
     }
 
-    /// Skips the next instruction if VX does not equal NN (usually the next instruction is a jump to skip a code block).
+    /// Skips the next instruction if VX does not equal NN.
     fn skip_if_variable_is_not_equal_to(&mut self, opcode: u16) {
         let vx = (opcode & 0x0F00) >> 8;
         let value = opcode & 0x00FF;
@@ -230,12 +230,24 @@ impl Emulator {
         }
     }
 
+    /// Skips the next instruction if VX equals VY.
     fn skip_if_variables_equal(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        if self.registers[vx as usize] == self.registers[vy as usize] {
+            self.program_counter += 2;
+        }
     }
 
+    /// Skips the next instruction if VX does not equal VY.
     fn skip_if_variables_not_equal(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+        let vy = (opcode & 0x00F0) >> 4;
+
+        if self.registers[vx as usize] != self.registers[vy as usize] {
+            self.program_counter += 2;
+        }
     }
 
     /// Sets VX to NN.
@@ -381,7 +393,7 @@ impl Emulator {
         self.waiting_for_keypress = true;
     }
 
-    /// Skips the next instruction if the key stored in VX is not pressed (usually the next instruction is a jump to skip a code block).
+    /// Skips the next instruction if the key stored in VX is not pressed.
     fn skip_if_not_pressed(&mut self, opcode: u16) {
         let vx = (opcode & 0x0F00) >> 8;
         let key = self.registers[vx as usize];
@@ -391,7 +403,7 @@ impl Emulator {
         }
     }
 
-    /// Skips the next instruction if the key stored in VX is pressed (usually the next instruction is a jump to skip a code block).
+    /// Skips the next instruction if the key stored in VX is pressed.
     fn skip_if_pressed(&mut self, opcode: u16) {
         let vx = (opcode & 0x0F00) >> 8;
         let key = self.registers[vx as usize];

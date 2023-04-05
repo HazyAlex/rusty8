@@ -1,5 +1,4 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
+mod input;
 
 use std::{
     collections::VecDeque,
@@ -30,6 +29,7 @@ pub struct Emulator {
     redraw: bool,
 
     keyboard: [bool; 16],
+    waiting_for_keypress: bool,
 
     delay_timer: u8,
     sound_timer: u8,
@@ -51,6 +51,7 @@ impl Default for Emulator {
             redraw: false,
 
             keyboard: [false; 16],
+            waiting_for_keypress: false,
 
             delay_timer: Default::default(),
             sound_timer: Default::default(),
@@ -364,7 +365,20 @@ impl Emulator {
 
     /// A key press is awaited, and then stored in VX (blocking operation, all instruction halted until next key event).
     fn get_key_press(&mut self, opcode: u16) {
-        todo!()
+        let vx = (opcode & 0x0F00) >> 8;
+
+        for (index, key) in self.keyboard.iter().enumerate() {
+            if *key {
+                self.registers[vx as usize] = index as u8;
+                self.waiting_for_keypress = false;
+                return;
+            }
+        }
+
+        // This is a blocking operation, but since we can't simulate this using FLTK,
+        //  we'll repeat the same instruction until we get a key press.
+        self.program_counter -= 2;
+        self.waiting_for_keypress = true;
     }
 
     /// Skips the next instruction if the key stored in VX is not pressed (usually the next instruction is a jump to skip a code block).
@@ -529,7 +543,11 @@ fn main() {
     let keyboard: Arc<Mutex<VecDeque<char>>> = Arc::new(Mutex::new(VecDeque::with_capacity(10)));
     let keyboard_events: Arc<Mutex<VecDeque<char>>> = keyboard.clone();
 
+    input::handle_events(&mut window, keyboard_events);
+
     app::add_idle3(move |_| {
+        input::handle_keyboard(&mut emulator, &keyboard);
+
         emulator.run();
 
         if emulator.delay_timer > 0 && delay_timer.elapsed().as_millis() >= 16 {
